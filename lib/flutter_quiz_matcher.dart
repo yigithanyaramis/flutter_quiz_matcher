@@ -33,7 +33,8 @@ class QuizMatcher extends StatefulWidget {
   State<QuizMatcher> createState() => _QuizMatcherState();
 }
 
-class _QuizMatcherState extends State<QuizMatcher> with SingleTickerProviderStateMixin {
+class _QuizMatcherState extends State<QuizMatcher>
+    with SingleTickerProviderStateMixin {
   late Animation<double> animation;
   late AnimationController controller;
   final List<QuestionWidget> widgetDataQuestions = [];
@@ -71,13 +72,20 @@ class _QuizMatcherState extends State<QuizMatcher> with SingleTickerProviderStat
 
     widgetDataAnswerBeforeSuffle = widgetDataAnswer;
     for (int i = 0; i < widgetDataQuestions.length; i++) {
-      widgetDataQuestions[i].rightAnswerKey = widgetDataAnswerBeforeSuffle[i].key.toString();
+      widgetDataQuestions[i].rightAnswerKey =
+          widgetDataAnswerBeforeSuffle[i].key.toString();
     }
     widgetDataAnswer.shuffle();
     for (int i = 0; i < widget.questions.length; i++) {
-      listLine.add(Line(panStartOffset: Offset.zero, panEndOffset: Offset.zero, ansSelection: false, colorOfPoint: widget.defaultLineColor));
+      listLine.add(Line(
+          panStartOffset: Offset.zero,
+          panEndOffset: Offset.zero,
+          colorOfPoint: widget.defaultLineColor,
+          points: <Offset>[],
+          isMatched: false));
     }
-    controller = AnimationController(duration: const Duration(milliseconds: 500), vsync: this);
+    controller = AnimationController(
+        duration: const Duration(milliseconds: 500), vsync: this);
 
     animation = Tween(begin: 0.0, end: 1.0).animate(controller)
       ..addListener(() {
@@ -93,33 +101,16 @@ class _QuizMatcherState extends State<QuizMatcher> with SingleTickerProviderStat
           onPanUpdate: (DragUpdateDetails details) {
             ////
             p2 = details.globalPosition;
-            List<Rect> questionsOffset = List.generate(
-              widget.questions.length,
-              (i) => widgetDataQuestions[i].key.globalPaintBounds!,
-            );
 
-            List<Rect> answersOffset = List.generate(
-              widget.answers.length,
-              (i) => widgetDataAnswer[i].key.globalPaintBounds!,
-            );
+            if (p1 != Offset.zero) {
+              RenderBox box = context.findRenderObject() as RenderBox;
+              Offset point = box.localToGlobal(details.localPosition);
 
-            RenderBox box = context.findRenderObject() as RenderBox;
-            Offset point = box.localToGlobal(details.localPosition);
-
-            bool isInOffset(List<Rect> offsets) {
-              return offsets.any(
-                (offset) => p2.dx >= offset.left && p2.dx <= offset.right && p2.dy >= offset.top && p2.dy <= offset.bottom,
-              );
-            }
-
-            if (!isInOffset(questionsOffset) && !isInOffset(answersOffset)) {
               points = List.from(points)..add(point);
+              setState(() {});
             }
-            setState(() {});
           },
           onPanEnd: (DragEndDetails details) {
-            points.clear();
-
             List<Rect> questionsOffset = List.generate(
               widget.questions.length,
               (i) => widgetDataQuestions[i].key.globalPaintBounds!,
@@ -130,50 +121,79 @@ class _QuizMatcherState extends State<QuizMatcher> with SingleTickerProviderStat
               (i) => widgetDataAnswer[i].key.globalPaintBounds!,
             );
 
+            bool startPointOnQuestion = false;
+            bool endPointOnAnswer = false;
+            int questionIndex = -1;
+            int answerIndex = -1;
+
             for (int i = 0; i < questionsOffset.length; i++) {
-              if (listLine[i].panStartOffset == Offset.zero && questionsOffset[i].contains(p1)) {
-                for (int j = 0; j < answersOffset.length; j++) {
-                  if (answersOffset[j].contains(p2)) {
-                    if (listLine[j].ansSelection == false) {
-                      if (widgetDataQuestions[i].rightAnswerKey.toString() == widgetDataAnswer[j].key.toString()) {
-                        score += 1;
-                        userAnswers.add(true);
-                        widget.onScoreUpdated(UserScore(questionIndex: i, questionAnswer: true));
-                        listLine[i].colorOfPoint = widget.correctLineColor;
-                      } else {
-                        listLine[i].colorOfPoint = widget.incorrectLineColor;
-                        userAnswers.add(false);
-                        widget.onScoreUpdated(UserScore(questionIndex: i, questionAnswer: false));
-                      }
-                      listLine[i].panEndOffset = Offset(answersOffset[j].left, answersOffset[j].top + answersOffset[j].height / 2);
-                      listLine[i].panStartOffset = Offset(questionsOffset[i].right, questionsOffset[i].bottom - questionsOffset[i].height / 2);
-                      listLine[j].ansSelection = true;
-                    } else {
-                      listLine[i].panStartOffset = Offset.zero;
-                      listLine[i].panEndOffset = Offset.zero;
-                    }
-                  }
-                }
-                if (animationIndex <= widgetDataAnswer.length) {
-                  animationIndex = i + 1;
-                } else {
-                  animationIndex = 0;
-                }
+              if (questionsOffset[i].contains(p1)) {
+                startPointOnQuestion = true;
+                questionIndex = i;
+                break;
               }
             }
+
+            for (int j = 0; j < answersOffset.length; j++) {
+              if (answersOffset[j].contains(p2)) {
+                endPointOnAnswer = true;
+                answerIndex = j;
+                break;
+              }
+            }
+
+            if (startPointOnQuestion &&
+                endPointOnAnswer &&
+                questionIndex != -1 &&
+                answerIndex != -1 &&
+                !listLine[questionIndex].isMatched) {
+              listLine[questionIndex].points = List.from(points);
+
+              if (widgetDataQuestions[questionIndex]
+                      .rightAnswerKey
+                      .toString() ==
+                  widgetDataAnswer[answerIndex].key.toString()) {
+                score += 1;
+                userAnswers.add(true);
+                widget.onScoreUpdated(UserScore(
+                    questionIndex: questionIndex, questionAnswer: true));
+                listLine[questionIndex].colorOfPoint = widget.correctLineColor;
+              } else {
+                listLine[questionIndex].colorOfPoint =
+                    widget.incorrectLineColor;
+                userAnswers.add(false);
+                widget.onScoreUpdated(UserScore(
+                    questionIndex: questionIndex, questionAnswer: false));
+              }
+
+              listLine[questionIndex].isMatched = true;
+
+              if (animationIndex <= widgetDataAnswer.length) {
+                animationIndex = questionIndex + 1;
+              } else {
+                animationIndex = 0;
+              }
+            }
+
+            points = <Offset>[];
             controller.forward(from: 0);
             setState(() {});
           },
           onPanStart: (details) {
+            points = <Offset>[];
+            p1 = Offset.zero;
+
             List<Rect> questionsOffset = [];
             for (int i = 0; i < widget.questions.length; i++) {
-              questionsOffset.add(widgetDataQuestions[i].key.globalPaintBounds!);
+              questionsOffset
+                  .add(widgetDataQuestions[i].key.globalPaintBounds!);
             }
 
             for (int i = 0; i < questionsOffset.length; i++) {
-              if (questionsOffset[i].contains(details.globalPosition)) {
+              if (questionsOffset[i].contains(details.globalPosition) &&
+                  !listLine[i].isMatched) {
                 p1 = details.globalPosition;
-                break; // Exit the loop once a match is found
+                break;
               }
             }
           },
@@ -219,7 +239,9 @@ class _QuizMatcherState extends State<QuizMatcher> with SingleTickerProviderStat
                             p1: listLine[i].panStartOffset,
                             p2: listLine[i].panEndOffset,
                             color: listLine[i].colorOfPoint,
-                            progress: animationIndex == i + 1 ? controller.value : 1),
+                            progress:
+                                animationIndex == i + 1 ? controller.value : 1,
+                            points: listLine[i].points),
                       ),
                   ],
                 ),

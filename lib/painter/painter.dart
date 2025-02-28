@@ -4,21 +4,38 @@ import 'package:flutter/material.dart';
 
 class Sketcher extends CustomPainter {
   final double progress;
-
   final Color color;
   final Offset p1;
   final Offset p2;
+  final List<Offset> points;
 
-  Sketcher({required this.p1, required this.p2, required this.color, required this.progress});
+  Sketcher(
+      {required this.p1,
+      required this.p2,
+      required this.color,
+      required this.progress,
+      this.points = const <Offset>[]});
 
   @override
   void paint(Canvas canvas, Size size) {
     Paint paint = Paint();
     paint.color = color;
     paint.strokeCap = StrokeCap.round;
-    // paint.strokeJoin = StrokeJoin.round;
     paint.strokeWidth = 5;
-    canvas.drawLine(p1, Offset(lerpDouble(p1.dx, p2.dx, progress)!, lerpDouble(p1.dy, p2.dy, progress)!), paint);
+
+    if (points.isNotEmpty) {
+      for (int i = 0; i < points.length - 1; i++) {
+        if (points[i] != Offset.zero && points[i + 1] != Offset.zero) {
+          canvas.drawLine(points[i], points[i + 1], paint);
+        }
+      }
+    } else if (p1 != Offset.zero && p2 != Offset.zero) {
+      canvas.drawLine(
+          p1,
+          Offset(lerpDouble(p1.dx, p2.dx, progress)!,
+              lerpDouble(p1.dy, p2.dy, progress)!),
+          paint);
+    }
   }
 
   @override
